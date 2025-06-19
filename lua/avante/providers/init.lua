@@ -129,10 +129,20 @@ M = setmetatable(M, {
     local provider_config = M.get_config(k)
 
     if provider_config.__inherited_from ~= nil then
+      -- 1) get base‐config table
       local base_provider_config = M.get_config(provider_config.__inherited_from)
-      local ok, module = pcall(require, "avante.providers." .. provider_config.__inherited_from)
-      if not ok then error("Failed to load provider: " .. provider_config.__inherited_from, 2) end
-      provider_config = Utils.deep_extend_with_metatable("force", module, base_provider_config, provider_config)
+
+      -- 2) load base module
+      local ok_base, base_mod = pcall(require, "avante.providers." .. provider_config.__inherited_from)
+      if not ok_base then error("Failed to load provider: " .. provider_config.__inherited_from, 2) end
+
+      -- 3) load child module (if present) for any custom overrides
+      local ok_child, child_mod = pcall(require, "avante.providers." .. k)
+      if not ok_child then child_mod = {} end
+
+      -- 4) merge in order: base table, base module, child module, then config block
+      provider_config =
+        Utils.deep_extend_with_metatable("force", base_provider_config, base_mod, child_mod, provider_config)
     else
       local ok, module = pcall(require, "avante.providers." .. k)
       if ok then
